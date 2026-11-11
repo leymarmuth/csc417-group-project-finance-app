@@ -26,6 +26,14 @@ React Native · Expo SDK 58 · TypeScript · Reanimated 4 · Zustand · React Na
 > offline-first persistence, and light/dark theming. Kenyan shillings by default, with M-Pesa,
 > bank and Sacco accounts, HELB upkeep and campus life in Eldoret as the demo scenario.
 
+## Live web demo
+
+[Open Aurum on GitHub Pages](https://leymarmuth.github.io/csc417-group-project-finance-app/)
+— no download or local setup is required.
+
+Choose **Sign in → Use the demo account → Sign in** to explore the sample ledger.
+The browser demo uses local sample data; it does not connect to real bank or M-Pesa accounts.
+
 ---
 
 ## Table of contents
