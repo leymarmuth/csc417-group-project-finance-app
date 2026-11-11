@@ -27,8 +27,8 @@ export const PROJECT = {
   academicYear: '2025 / 2026',
   /** One-line summary reused in a few places. */
   tagline: 'A premium mobile personal-finance app built in Kenya, with React Native & Expo.',
-  /** Public repository (filled in after the first push). */
-  repositoryUrl: 'https://github.com/<your-username>/csc417-group-project-finance-app',
+  /** Public source repository for this course submission. */
+  repositoryUrl: 'https://github.com/leymarmuth/csc417-group-project-finance-app',
 } as const;
 
 /** Modules/features delivered, used in the in-app "About this project" sheet. */
