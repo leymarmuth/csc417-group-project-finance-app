@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "Aurum",
+    "slug": "aurum",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "aurum",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#07080B"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.aurum.app",
+      "infoPlist": {
+        "UIViewControllerBasedStatusBarAppearance": true
+      }
+    },
+    "android": {
+      "package": "com.aurum.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#07080B",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#07080B"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "description": "CSC 417 Group Project \u2014 Aurum, a premium personal finance and wealth tracking application.",
+    "extra": {
+      "courseCode": "CSC 417",
+      "submissionType": "Group Project"
+    }
+  }
+}
