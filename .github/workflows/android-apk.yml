@@ -1,26 +1,31 @@
 name: Android APK
 
-# Builds an installable Android APK of Aurum and publishes it as a GitHub Release.
-# Stable download link (always the newest build):
+# 1. build  – compiles a signed APK for real phones (ARM) plus an x86_64 test APK
+# 2. smoke  – installs the test APK on an Android emulator, signs in with the demo
+#             account, relaunches the app and opens every tab
+# 3. release – only if the smoke test passes, publishes Aurum.apk as a GitHub Release
+#
+# Stable download link (always the newest passing build):
 #   https://github.com/leymarmuth/csc417-group-project-finance-app/releases/latest/download/Aurum.apk
 
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/**']
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: android-apk
+  group: android-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  apk:
-    name: Build signed APK
+  build:
+    name: Build APKs
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -39,19 +44,33 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install --clean
         env:
           EXPO_NO_TELEMETRY: 1
 
-      - name: Build release APK
+      - name: Build phone APK (ARM)
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+        run: |
+          ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+          cp app/build/outputs/apk/release/app-release.apk ../phone-unsigned.apk
         env:
           EXPO_NO_TELEMETRY: 1
           NODE_ENV: production
 
-      - name: Sign APK with the Aurum release key
+      - name: Build emulator test APK (x86_64)
+        working-directory: android
+        run: |
+          ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=x86_64
+          cp app/build/outputs/apk/release/app-release.apk ../Aurum-x86_64-test.apk
+        env:
+          EXPO_NO_TELEMETRY: 1
+          NODE_ENV: production
+
+      - name: Sign phone APK with the Aurum release key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -62,15 +81,65 @@ jobs:
           "$BT/apksigner" sign \
             --ks release.keystore --ks-key-alias "$KEY_ALIAS" \
             --ks-pass env:KS_PASS --key-pass env:KS_PASS \
-            --out Aurum.apk android/app/build/outputs/apk/release/app-release.apk
+            --out Aurum.apk phone-unsigned.apk
           "$BT/apksigner" verify --print-certs Aurum.apk | head -3
           rm release.keystore
-          ls -lh Aurum.apk
+          ls -lh Aurum.apk Aurum-x86_64-test.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: Aurum-apk
           path: Aurum.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Aurum-test-apk
+          path: Aurum-x86_64-test.apk
+
+  smoke:
+    name: Smoke test on emulator
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Aurum-test-apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+
+      - name: Run on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            mkdir -p smoke && adb install -r Aurum-x86_64-test.apk && adb logcat -c && (python3 scripts/android-smoke-test.py | tee smoke/result.txt; adb logcat -d > smoke/logcat.txt; adb logcat -d -b crash > smoke/crash.txt; grep -q "RESULT: PASS" smoke/result.txt)
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test
+          path: smoke/
+
+  release:
+    name: Publish release
+    needs: [build, smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Aurum-apk
 
       - name: Publish GitHub Release
         env:
@@ -80,5 +149,5 @@ jobs:
           TAG="android-v${VERSION}-build${{ github.run_number }}"
           gh release create "$TAG" Aurum.apk \
             --title "Aurum ${VERSION} (Android build ${{ github.run_number }})" \
-            --notes "Install on Android: download **Aurum.apk** on your phone, open it, and allow installing from this source if asked. Built from ${GITHUB_SHA::7}." \
+            --notes "Install on Android: download **Aurum.apk** on your phone, open it, and allow installing from this source if asked. Passed the automated emulator smoke test (sign-in, relaunch, all tabs). Built from ${GITHUB_SHA::7}." \
             --latest
