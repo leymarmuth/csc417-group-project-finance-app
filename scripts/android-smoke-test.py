@@ -24,20 +24,41 @@ def nodes():
     except ET.ParseError:
         return []
 
-def tap(label, timeout=40):
+def screen_size():
+    m = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
+    return (int(m.group(1)), int(m.group(2))) if m else (1080, 1920)
+
+def find(label):
+    """Exact (case-insensitive) text/content-desc match first, then substring."""
+    want = label.strip().lower()
+    exact, partial = None, None
+    for n in nodes():
+        vals = [(n.get("text") or "").strip().lower(), (n.get("content-desc") or "").strip().lower()]
+        if want in vals and exact is None:
+            exact = n
+        elif any(want in v for v in vals) and partial is None:
+            partial = n
+    return exact if exact is not None else partial
+
+def tap(label, timeout=40, scroll=True):
+    w, h = screen_size()
     end = time.time() + timeout
+    attempt = 0
     while time.time() < end:
         if not alive():
             print(f"!! app died while waiting for '{label}'")
             return False
-        for n in nodes():
-            txt = (n.get("text") or "") + " " + (n.get("content-desc") or "")
-            if label.lower() in txt.lower():
-                x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.get("bounds")))
-                adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
-                print(f"tapped '{label}'")
-                time.sleep(2)
-                return True
+        n = find(label)
+        if n is not None:
+            x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.get("bounds")))
+            adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
+            print(f"tapped '{label}'")
+            time.sleep(2)
+            return True
+        attempt += 1
+        if scroll and attempt % 2 == 0 and attempt <= 8:
+            # Element may be below the fold: scroll the content up a bit.
+            adb("shell", "input", "swipe", str(w // 2), str(int(h * 0.75)), str(w // 2), str(int(h * 0.35)), "400")
         time.sleep(2)
     print(f"!! could not find '{label}'")
     return False
@@ -57,7 +78,7 @@ adb("shell", "am", "force-stop", PKG); time.sleep(3)
 launch(); time.sleep(20); shot("03-relaunch")
 second = alive(); print("alive after relaunch:", second)
 for i, label in enumerate(["Activity", "Insights", "Goals", "Profile"]):
-    if second and tap(label, timeout=15):
+    if second and tap(label, timeout=15, scroll=False):
         time.sleep(4); shot(f"04-tab-{i}-{label}")
 third = alive(); print("alive after visiting tabs:", third)
 print("RESULT:", "PASS" if ok and first and second and third else "FAIL")
