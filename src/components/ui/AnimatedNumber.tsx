@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { TextStyle } from 'react-native';
 import {
   Easing,
@@ -37,12 +37,16 @@ export function AnimatedNumber({
     shared.value = withTiming(value, { duration, easing: Easing.out(Easing.cubic) });
   }, [duration, shared, value]);
 
+  // `format` is a regular JS function: run it on the JS thread, never inside the worklet
+  // (calling a non-worklet function on the UI thread crashes native builds).
+  const updateDisplay = useCallback((current: number) => setDisplay(format(current)), [format]);
+
   useAnimatedReaction(
     () => shared.value,
-    (current) => {
-      runOnJS(setDisplay)(format(current));
+    (current, previous) => {
+      if (current !== previous) runOnJS(updateDisplay)(current);
     },
-    [format],
+    [updateDisplay],
   );
 
   return (

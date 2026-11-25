@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import {
   Easing,
@@ -65,12 +65,20 @@ export function MoneyDisplay({
     }
   }, [amount, animate, currency, shared]);
 
+  // `splitMoney` (and the Intl formatter inside it) is plain JavaScript, so it must run on
+  // the JS thread. Calling it inside the worklet below runs it on the UI thread, which
+  // works on web but crashes the native Android/iOS app the moment a balance animates.
+  const updateParts = useCallback(
+    (current: number) => setParts(splitMoney(Math.round(current), currency)),
+    [currency],
+  );
+
   useAnimatedReaction(
     () => shared.value,
-    (current) => {
-      runOnJS(setParts)(splitMoney(Math.round(current), currency));
+    (current, previous) => {
+      if (current !== previous) runOnJS(updateParts)(current);
     },
-    [currency],
+    [updateParts],
   );
 
   const tint = color ?? theme.colors.text;
